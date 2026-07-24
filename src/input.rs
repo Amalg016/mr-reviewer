@@ -47,10 +47,10 @@ fn handle_normal_mode(app: &mut App, key: KeyEvent) {
         }
 
         // ── Tab switching (Shift+H / Shift+L or 1/2/3) ──
-        (KeyCode::Char('H'), KeyModifiers::SHIFT) => {
+        (KeyCode::Char('H'), _) => {
             app.prev_tab();
         }
-        (KeyCode::Char('L'), KeyModifiers::SHIFT) => {
+        (KeyCode::Char('L'), _) => {
             app.next_tab();
         }
         (KeyCode::Char('1'), _) => {

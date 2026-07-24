@@ -12,7 +12,7 @@ use crate::app::{ActiveTab, App};
 /// Top-level render function. Composes the full layout and dispatches to sub-components.
 pub fn render(frame: &mut Frame, app: &mut App) {
     let [header_area, main_area, status_area] = Layout::vertical([
-        Constraint::Length(3),
+        Constraint::Length(4),
         Constraint::Fill(1),
         Constraint::Length(1),
     ])
