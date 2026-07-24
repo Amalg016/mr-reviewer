@@ -1,80 +1,166 @@
-use std::process::Command;
+mod app;
+mod diff;
+mod event;
+mod git;
+mod input;
+mod provider;
+mod ui;
 
-use serde::Deserialize;
+use std::time::Duration;
 
-#[derive(Debug, Deserialize)]
-struct MergeRequest {
-    iid: u64,
-    title: String,
-    web_url: String,
-}
+use anyhow::{Context, Result};
 
-async fn find_mr(
-    project: &str,
-    branch: &str,
-) -> Result<Vec<MergeRequest>, reqwest::Error> {
-
-    let project = urlencoding::encode(project);
-
-    let url = format!(
-        "https://gitlab.com/api/v4/projects/{}/merge_requests?source_branch={}",
-        project,
-        branch
-    );
-
-    let response = reqwest::get(url).await?.json::<Vec<MergeRequest>>().await?;
-
-    Ok(response)
-}
-
-fn get_current_branch() -> Result<String, String> {
-    let output = Command::new("git")
-        .args(["branch", "--show-current"])
-        .output()
-        .map_err(|e| format!("Failed to run git: {}", e))?;
-
-    if !output.status.success() {
-        return Err("Not inside a git repository".to_string());
-    }
-
-    let branch = String::from_utf8(output.stdout)
-        .map_err(|e| format!("Invalid UTF-8: {}", e))?
-        .trim()
-        .to_string();
-
-    if branch.is_empty() {
-        return Err("No branch detected (possibly detached HEAD)".to_string());
-    }
-
-    Ok(branch)
-}
+use app::App;
+use event::{AppEvent, EventHandler};
+use provider::gitlab::GitLabProvider;
+use provider::MrProvider;
 
 #[tokio::main]
-async fn main() {
-    let project = "gitlab-org/gitlab";
-    let branch = match get_current_branch() {
-        Ok(branch) => branch,
-        Err(err) => {
-            eprintln!("Error: {}", err);
-            return;
-        }
-    };
+async fn main() -> Result<()> {
+    // 1. Detect branch and project from git remote
+    let branch = git::get_current_branch()
+        .context("Failed to detect git branch. Are you in a git repository?")?;
 
-    println!("Branch: {}", branch);
+    let (project, base_url) = git::detect_project_from_remote()
+        .context("Failed to detect GitLab project from git remote")?;
 
-    match find_mr(project, &branch).await {
-        Ok(mrs) => {
-             if mrs.is_empty() {
-                println!("No merge request found for {}", branch);
-             } else {
-                for mr in mrs {
-                    println!("#{} :- {}", mr.iid, mr.title);
-                    println!("url: {}", mr.web_url);
+    // 2. Create provider
+    let provider = GitLabProvider::new(project, base_url);
+
+    // 3. Install panic hook to restore terminal on panic
+    let original_hook = std::panic::take_hook();
+    std::panic::set_hook(Box::new(move |panic_info| {
+        let _ = ratatui::restore();
+        original_hook(panic_info);
+    }));
+
+    // 4. Initialize terminal
+    let mut terminal = ratatui::init();
+
+    // 5. Create app state
+    let mut app = App::new(branch.clone());
+
+    // 6. Spawn async task to fetch MR data
+    let (data_tx, mut data_rx) = tokio::sync::mpsc::unbounded_channel::<DataUpdate>();
+
+    {
+        let branch = branch.clone();
+        let provider = provider.clone();
+        let tx = data_tx.clone();
+
+        tokio::spawn(async move {
+            // Fetch MRs for branch
+            match provider.fetch_mr_for_branch(&branch).await {
+                Ok(mrs) => {
+                    if let Some(mr) = mrs.into_iter().next() {
+                        let _ = tx.send(DataUpdate::MrLoaded(mr));
+                    } else {
+                        let _ = tx.send(DataUpdate::NoMrFound);
+                    }
+                }
+                Err(e) => {
+                    let _ = tx.send(DataUpdate::Error(format!("Failed to fetch MR: {}", e)));
+                }
+            }
+        });
+    }
+
+    // 7. Event loop
+    let mut events = EventHandler::new(Duration::from_millis(50));
+
+    loop {
+        // Draw UI
+        terminal.draw(|frame| ui::render(frame, &mut app))?;
+
+        // Check for async data updates (non-blocking)
+        while let Ok(update) = data_rx.try_recv() {
+            match update {
+                DataUpdate::MrLoaded(mr) => {
+                    let iid = mr.iid;
+                    app.mr = Some(mr);
+                    app.set_status("MR loaded successfully", false);
+
+                    // Fetch diff files and comments
+                    let provider = provider.clone();
+                    let tx = data_tx.clone();
+                    tokio::spawn(async move {
+                        match provider.fetch_diff_files(iid).await {
+                            Ok(files) => {
+                                let _ = tx.send(DataUpdate::DiffFilesLoaded(files));
+                            }
+                            Err(e) => {
+                                let _ = tx.send(DataUpdate::Error(format!(
+                                    "Failed to fetch diffs: {}",
+                                    e
+                                )));
+                            }
+                        }
+
+                        match provider.fetch_comments(iid).await {
+                            Ok(comments) => {
+                                let _ = tx.send(DataUpdate::CommentsLoaded(comments));
+                            }
+                            Err(e) => {
+                                let _ = tx.send(DataUpdate::Error(format!(
+                                    "Failed to fetch comments: {}",
+                                    e
+                                )));
+                            }
+                        }
+                    });
+                }
+                DataUpdate::DiffFilesLoaded(files) => {
+                    app.diff_files = files;
+                    app.loading = false;
+                    app.set_status(
+                        format!("{} files changed", app.diff_files.len()),
+                        false,
+                    );
+                }
+                DataUpdate::CommentsLoaded(comments) => {
+                    app.comments = comments;
+                }
+                DataUpdate::NoMrFound => {
+                    app.loading = false;
+                    app.set_status("No open MR found for this branch", false);
+                }
+                DataUpdate::Error(msg) => {
+                    app.loading = false;
+                    app.set_status(msg, true);
                 }
             }
         }
-        Err(err) => {
-            eprintln!("Failed to fetch MR: {}", err);
+
+        // Handle terminal events
+        match events.next().await? {
+            AppEvent::Key(key) => {
+                input::handle_key_event(&mut app, key);
+            }
+            AppEvent::Resize(_, _) => {
+                // ratatui handles resize automatically on next draw
+            }
+            AppEvent::Tick => {
+                // Could handle animations, status message timeout, etc.
+            }
+        }
+
+        if app.should_quit {
+            break;
         }
     }
+
+    // 8. Restore terminal
+    ratatui::restore();
+
+    Ok(())
+}
+
+/// Messages sent from async data-fetching tasks to the main event loop.
+#[derive(Debug)]
+enum DataUpdate {
+    MrLoaded(provider::MrSummary),
+    DiffFilesLoaded(Vec<provider::DiffFile>),
+    CommentsLoaded(Vec<provider::MrComment>),
+    NoMrFound,
+    Error(String),
 }
