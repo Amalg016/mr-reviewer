@@ -5,12 +5,16 @@ pub mod header;
 pub mod status_bar;
 
 use ratatui::layout::{Constraint, Layout};
+use ratatui::widgets::Clear;
 use ratatui::Frame;
 
 use crate::app::{ActiveTab, App};
 
 /// Top-level render function. Composes the full layout and dispatches to sub-components.
 pub fn render(frame: &mut Frame, app: &mut App) {
+    // Clear entire frame buffer to prevent ghost characters/borders when switching views
+    frame.render_widget(Clear, frame.area());
+
     let [header_area, main_area, status_area] = Layout::vertical([
         Constraint::Length(4),
         Constraint::Fill(1),
