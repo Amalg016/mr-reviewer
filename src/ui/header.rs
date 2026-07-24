@@ -5,6 +5,7 @@ use ratatui::widgets::{Block, BorderType, Borders, Paragraph};
 use ratatui::Frame;
 
 use crate::app::{ActiveTab, App};
+use super::BG;
 
 /// Render the header bar showing branch, MR info, and tab navigation.
 pub fn render(frame: &mut Frame, area: Rect, app: &App) {
@@ -70,7 +71,9 @@ pub fn render(frame: &mut Frame, area: Rect, app: &App) {
 
         let content = vec![Line::from(spans), tab_line];
 
-        let header = Paragraph::new(content).block(block);
+        let header = Paragraph::new(content)
+            .block(block)
+            .style(Style::default().bg(BG));
         frame.render_widget(header, area);
     } else {
         let loading_text = if app.loading {
@@ -97,7 +100,9 @@ pub fn render(frame: &mut Frame, area: Rect, app: &App) {
         let tab_line = build_tab_line(app);
         let content = vec![Line::from(spans), tab_line];
 
-        let header = Paragraph::new(content).block(block);
+        let header = Paragraph::new(content)
+            .block(block)
+            .style(Style::default().bg(BG));
         frame.render_widget(header, area);
     }
 }

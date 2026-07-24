@@ -5,6 +5,7 @@ use ratatui::widgets::{Block, BorderType, Borders, Clear, Paragraph, Wrap};
 use ratatui::Frame;
 
 use crate::app::App;
+use super::BG;
 
 /// Render the comment input overlay as a floating popup over the diff view.
 pub fn render_input_overlay(frame: &mut Frame, area: Rect, app: &App) {
@@ -93,6 +94,7 @@ pub fn render_input_overlay(frame: &mut Frame, area: Rect, app: &App) {
 
     let paragraph = Paragraph::new(lines)
         .block(block)
+        .style(Style::default().bg(BG))
         .wrap(Wrap { trim: false });
 
     frame.render_widget(paragraph, popup_area);
@@ -116,7 +118,8 @@ pub fn render_discussions(frame: &mut Frame, area: Rect, app: &App) {
             msg,
             Style::default().fg(Color::DarkGray).italic(),
         ))
-        .block(block);
+        .block(block)
+        .style(Style::default().bg(BG));
         frame.render_widget(paragraph, area);
         return;
     }
@@ -173,6 +176,7 @@ pub fn render_discussions(frame: &mut Frame, area: Rect, app: &App) {
 
     let paragraph = Paragraph::new(lines)
         .block(block)
+        .style(Style::default().bg(BG))
         .wrap(Wrap { trim: false });
 
     frame.render_widget(paragraph, area);

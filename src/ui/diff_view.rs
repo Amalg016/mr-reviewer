@@ -7,6 +7,8 @@ use ratatui::Frame;
 use crate::app::{ActivePane, AppMode, App};
 use crate::diff::DiffLineKind;
 
+use super::BG;
+
 /// Render the unified diff view with line numbers, syntax coloring, cursor, and visual selection.
 pub fn render(frame: &mut Frame, area: Rect, app: &App) {
     let is_focused = app.active_pane == ActivePane::DiffView;
@@ -42,7 +44,8 @@ pub fn render(frame: &mut Frame, area: Rect, app: &App) {
         let paragraph = Paragraph::new(
             Span::styled(empty_msg, Style::default().fg(Color::DarkGray).italic()),
         )
-        .block(block);
+        .block(block)
+        .style(Style::default().bg(BG));
         frame.render_widget(paragraph, area);
         return;
     }
@@ -81,7 +84,7 @@ pub fn render(frame: &mut Frame, area: Rect, app: &App) {
                 DiffLineKind::Context => (" ", Color::Rgb(160, 160, 160)),
             };
 
-            // Background for cursor / visual selection
+            // Background for cursor / visual selection — always explicit, never Reset
             let bg_color = if is_cursor_line && is_selected {
                 Color::Rgb(60, 60, 120)
             } else if is_cursor_line {
@@ -92,7 +95,7 @@ pub fn render(frame: &mut Frame, area: Rect, app: &App) {
                 match dl.kind {
                     DiffLineKind::Addition => Color::Rgb(15, 35, 15),
                     DiffLineKind::Deletion => Color::Rgb(40, 15, 15),
-                    _ => Color::Reset,
+                    _ => BG,
                 }
             };
 
@@ -103,30 +106,29 @@ pub fn render(frame: &mut Frame, area: Rect, app: &App) {
                 .bg(bg_color)
                 .add_modifier(Modifier::BOLD);
 
-            let content = match dl.kind {
+            match dl.kind {
                 DiffLineKind::FileHeader | DiffLineKind::HunkHeader => {
                     // Full-width display for headers
                     Line::from(vec![
                         Span::styled("         ", gutter_style),
                         Span::styled(&dl.content, line_style.add_modifier(Modifier::BOLD)),
-                    ])
+                    ]).style(Style::default().bg(bg_color))
                 }
                 _ => Line::from(vec![
                     Span::styled(old_no, gutter_style),
-                    Span::styled("│", Style::default().fg(Color::Rgb(50, 50, 70)).bg(bg_color)),
+                    Span::styled("|", Style::default().fg(Color::Rgb(50, 50, 70)).bg(bg_color)),
                     Span::styled(new_no, gutter_style),
-                    Span::styled("│", Style::default().fg(Color::Rgb(50, 50, 70)).bg(bg_color)),
+                    Span::styled("|", Style::default().fg(Color::Rgb(50, 50, 70)).bg(bg_color)),
                     Span::styled(format!("{} ", prefix), prefix_style),
                     Span::styled(&dl.content, line_style),
-                ]),
-            };
-
-            content
+                ]).style(Style::default().bg(bg_color)),
+            }
         })
         .collect();
 
     let paragraph = Paragraph::new(lines)
         .block(block)
+        .style(Style::default().bg(BG))
         .scroll((app.diff_scroll as u16, 0));
 
     frame.render_widget(paragraph, area);
@@ -137,10 +139,10 @@ pub fn render(frame: &mut Frame, area: Rect, app: &App) {
             .position(app.diff_scroll);
 
         let scrollbar = Scrollbar::new(ScrollbarOrientation::VerticalRight)
-            .begin_symbol(Some("▲"))
-            .end_symbol(Some("▼"))
-            .track_symbol(Some("│"))
-            .thumb_symbol("█");
+            .begin_symbol(Some("^"))
+            .end_symbol(Some("v"))
+            .track_symbol(Some("|"))
+            .thumb_symbol("#");
 
         // Render scrollbar inside the block border area
         let scrollbar_area = Rect {

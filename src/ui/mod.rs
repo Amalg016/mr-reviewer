@@ -5,15 +5,20 @@ pub mod header;
 pub mod status_bar;
 
 use ratatui::layout::{Constraint, Layout};
-use ratatui::widgets::Clear;
+use ratatui::style::{Color, Style};
+use ratatui::widgets::Block;
 use ratatui::Frame;
 
 use crate::app::{ActiveTab, App};
 
+/// Base background color used throughout the UI to prevent ghosting.
+const BG: Color = Color::Rgb(18, 18, 24);
+
 /// Top-level render function. Composes the full layout and dispatches to sub-components.
 pub fn render(frame: &mut Frame, app: &mut App) {
-    // Clear entire frame buffer to prevent ghost characters/borders when switching views
-    frame.render_widget(Clear, frame.area());
+    // Paint the entire frame with a solid background to prevent any ghost cells
+    let bg_block = Block::default().style(Style::default().bg(BG));
+    frame.render_widget(bg_block, frame.area());
 
     let [header_area, main_area, status_area] = Layout::vertical([
         Constraint::Length(4),
@@ -60,9 +65,9 @@ pub fn render(frame: &mut Frame, app: &mut App) {
 
 /// Render the Overview tab: MR description, metadata, and general info.
 fn render_overview(frame: &mut Frame, area: ratatui::layout::Rect, app: &App) {
-    use ratatui::style::{Color, Style, Stylize};
+    use ratatui::style::Stylize;
     use ratatui::text::{Line, Span};
-    use ratatui::widgets::{Block, BorderType, Borders, Paragraph, Wrap};
+    use ratatui::widgets::{BorderType, Borders, Paragraph, Wrap};
 
     let mr_info = if let Some(ref mr) = app.mr {
         let mut lines = vec![
@@ -156,6 +161,7 @@ fn render_overview(frame: &mut Frame, area: ratatui::layout::Rect, app: &App) {
                 .border_type(BorderType::Rounded)
                 .border_style(Style::default().fg(Color::DarkGray)),
         )
+        .style(Style::default().bg(BG))
         .wrap(Wrap { trim: false });
 
     frame.render_widget(overview, area);

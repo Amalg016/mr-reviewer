@@ -5,6 +5,7 @@ use ratatui::widgets::{Block, BorderType, Borders, HighlightSpacing, List, ListI
 use ratatui::Frame;
 
 use crate::app::{ActivePane, App};
+use super::BG;
 
 /// Render the file tree sidebar listing changed files with status indicators.
 pub fn render(frame: &mut Frame, area: Rect, app: &mut App) {
@@ -31,7 +32,8 @@ pub fn render(frame: &mut Frame, area: Rect, app: &mut App) {
         let paragraph = ratatui::widgets::Paragraph::new(
             Span::styled(empty_msg, Style::default().fg(Color::DarkGray).italic()),
         )
-        .block(block);
+        .block(block)
+        .style(Style::default().bg(BG));
         frame.render_widget(paragraph, area);
         return;
     }
@@ -89,13 +91,14 @@ pub fn render(frame: &mut Frame, area: Rect, app: &mut App) {
 
     let list = List::new(items)
         .block(block)
+        .style(Style::default().bg(BG))
         .highlight_style(
             Style::default()
                 .bg(Color::Rgb(40, 40, 70))
                 .fg(Color::White)
                 .add_modifier(Modifier::BOLD),
         )
-        .highlight_symbol("▸ ")
+        .highlight_symbol("> ")
         .highlight_spacing(HighlightSpacing::Always);
 
     frame.render_stateful_widget(list, area, &mut app.file_list_state);
