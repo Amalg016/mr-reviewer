@@ -46,38 +46,50 @@ fn handle_normal_mode(app: &mut App, key: KeyEvent) {
             app.half_page_up();
         }
 
-        // ── Pane switching ──────────────────────────────
+        // ── Tab switching (Shift+H / Shift+L or 1/2/3) ──
+        (KeyCode::Char('H'), KeyModifiers::SHIFT) => {
+            app.prev_tab();
+        }
+        (KeyCode::Char('L'), KeyModifiers::SHIFT) => {
+            app.next_tab();
+        }
+        (KeyCode::Char('1'), _) => {
+            app.active_tab = crate::app::ActiveTab::Overview;
+        }
+        (KeyCode::Char('2'), _) => {
+            app.active_tab = crate::app::ActiveTab::Changes;
+        }
+        (KeyCode::Char('3'), _) => {
+            app.active_tab = crate::app::ActiveTab::Discussions;
+        }
+
+        // ── Pane switching & Left/Right navigation ──────
         (KeyCode::Tab, _) => {
             app.toggle_pane();
         }
-
-        // ── Tab switching ───────────────────────────────
-        (KeyCode::Char('L'), KeyModifiers::SHIFT) | (KeyCode::Char('L'), KeyModifiers::NONE) => {
-            // Uppercase L → next tab (only if it's truly uppercase)
-            if key.code == KeyCode::Char('L') {
-                app.next_tab();
+        (KeyCode::Left, _) | (KeyCode::Char('h'), KeyModifiers::NONE) => {
+            match app.active_tab {
+                crate::app::ActiveTab::Changes => {
+                    // Move left to FileTree sidebar
+                    app.active_pane = ActivePane::FileTree;
+                }
+                _ => app.prev_tab(),
             }
         }
-        (KeyCode::Char('H'), KeyModifiers::SHIFT) | (KeyCode::Char('H'), KeyModifiers::NONE) => {
-            if key.code == KeyCode::Char('H') {
-                app.prev_tab();
+        (KeyCode::Right, _) | (KeyCode::Char('l'), KeyModifiers::NONE) => {
+            match app.active_tab {
+                crate::app::ActiveTab::Changes => {
+                    match app.active_pane {
+                        ActivePane::FileTree => app.select_current_file(),
+                        ActivePane::DiffView => {}
+                    }
+                }
+                _ => app.next_tab(),
             }
-        }
-        (KeyCode::Right, _) => {
-            app.next_tab();
-        }
-        (KeyCode::Left, _) => {
-            app.prev_tab();
         }
 
         // ── File selection (Enter) ──────────────────────
         (KeyCode::Enter, _) => {
-            if app.active_pane == ActivePane::FileTree {
-                app.select_current_file();
-            }
-        }
-        (KeyCode::Char('l'), KeyModifiers::NONE) => {
-            // lowercase l in file tree → open file (like vim right-motion)
             if app.active_pane == ActivePane::FileTree {
                 app.select_current_file();
             }

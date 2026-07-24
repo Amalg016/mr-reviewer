@@ -52,10 +52,10 @@ pub fn render(frame: &mut Frame, area: Rect, app: &App) {
         let hints = match &app.mode {
             AppMode::Normal => match app.active_pane {
                 ActivePane::FileTree => {
-                    "j/k: navigate │ Enter: open │ m: reviewed │ Tab: switch pane │ H/L: tabs │ q: quit"
+                    "j/k: navigate │ Enter/→: open │ m: reviewed │ Tab/←/→: pane │ 1/2/3: tabs │ q: quit"
                 }
                 ActivePane::DiffView => {
-                    "j/k: navigate │ c: comment │ v: visual │ m: reviewed │ A: approve │ Tab: switch │ q: quit"
+                    "j/k: navigate │ ←: sidebar │ c: comment │ v: visual │ m: reviewed │ A: approve │ q: quit"
                 }
             },
             AppMode::VisualLine { .. } => {
